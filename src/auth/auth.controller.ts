@@ -1,11 +1,13 @@
 
-import { Controller, Request, Post, UseGuards, Body, ValidationPipe, UsePipes } from '@nestjs/common';
+import { Controller, Req, Post, UseGuards, Body, ValidationPipe, UsePipes, UseInterceptors, Header, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber } from 'class-validator';
+import { Request } from 'express';
+import { User, Role } from '../users/user.entity';
 
 
-class LoginDTO {
+export class LoginDTO {
     @IsString()
     @IsNotEmpty()
     username: string;
@@ -15,10 +17,21 @@ class LoginDTO {
     password: string;
 }
 
-class tokenDTO {
+export class ValidateTokenDTO {
+    // validateToken, token is in header
     @IsString()
     @IsNotEmpty()
-    token: string;
+    username: string;
+
+    @IsNumber()
+    @IsNotEmpty()
+    role?: Role; // 100000 -> admin, 1000000 -> superadmin
+}
+
+export class ChangeRoleDTO extends ValidateTokenDTO{
+    @IsNumber()
+    @IsNotEmpty()
+    role?: Role; // 100000 -> admin, 1000000 -> superadmin
 }
 
 @Controller('auth')
@@ -28,18 +41,21 @@ export class AuthController {
     @UseGuards(AuthGuard('local'))
     @UsePipes(new ValidationPipe())
     @Post('/login')
-    async login(@Request() req, @Body() user: LoginDTO) {
-        const token: { access_token:string } = await this.authService.login(user)
-        // put token to redis
-        return token;
+    async login(@Req() req, @Body() user: LoginDTO) {
+        const _user = await this.authService.login(user);
+        if(_user) return _user;
+        throw new Error('login failed');
     }
 
-    @UseGuards(AuthGuard('jwt'))
     @UsePipes(new ValidationPipe())
-    @Post('/validate')
-    async validateToken(@Request() req, @Body() token: tokenDTO) {
-        // get token from redis
-        const tokenRedis = null;
-        return tokenRedis === token.token;
+    @Post('/validateToken')
+    async validateToken(@Req() req: Request, @Body() dto: ValidateTokenDTO) :  Promise<200|401|403|400>{
+        const token:string | undefined = req.header('xtoken');
+        if(!token) throw new BadRequestException('token not found');
+
+        const result = await this.authService.validateToken(token, dto.username, dto.role);
+        return result;
     }
+
+    
 }
