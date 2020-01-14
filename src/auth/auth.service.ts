@@ -1,5 +1,5 @@
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { RedisService } from 'nestjs-redis';
@@ -15,7 +15,8 @@ interface InMemoryToken {
 
 interface IAuthService {
   login(user: LoginDTO):  Promise<{validUser: User, access_token: string}>;
-  validateToken(token:string|undefined, username:string, role: Role | undefined) : Promise<200|401|403|400>
+  validateTokenT(token:string|undefined, username:string, role: Role | undefined) : Promise<boolean>;
+  validateUserT(username: string, pass: string): Promise<User>;
 }
 
 // @ts-ignore
@@ -26,9 +27,8 @@ const tokenTTL = 6 * 60 * 60 * 1000;
 export class AuthService implements IAuthService {
   private redisClient: Redis.Redis;
   constructor(
-    private readonly usersService: UsersService,
+    private usersService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly redisService: RedisService
   ) {
     this.initT()
   }
@@ -47,28 +47,39 @@ export class AuthService implements IAuthService {
     };
   }
 
-  public async validateToken(token:string|undefined, username:string, role: Role | undefined) : Promise<200|401|403|400>{
+  public async validateTokenT(token:string|undefined, username:string, role: Role | undefined) : Promise<boolean>{
     role = role || 1;
 
     // get from memory or  get from redis and populate in-memory
     let user: InMemoryToken = tokenCache[token];
     if(!user) user = await this.getTokenFromRedis(token);
-    if(!user) return 401;
+    if(!user) throw new UnauthorizedException();
 
     // if compare the username does not match
     // if timestamp or token not valid, return 401
-    if(user.username !== username) return 401;
-    if(user.validTimestamp < new Date().getTime()) return 401;
+    if(user.username !== username) throw new UnauthorizedException()
+    if(user.validTimestamp < new Date().getTime()) throw  new UnauthorizedException();
 
     // if role is not matched return 403
-    if(user.role !== role) return 403;
+    if(user.role !== role) throw new ForbiddenException();
     
     // return 200
-    return 200;
+    return true;
+  }
+
+  async validateUserT(username: string, pass: string): Promise<User> {
+    const user = await this.usersService.findOne(username);
+    if(!user) throw new NotFoundException('user not found');
+
+    if (user && user.password === pass) {
+      const { password, ...result } = user;
+      return result as User;
+    }
+    return null;
   }
   
   private async initT(){
-    this.redisClient = await this.redisService.getClient();
+    this.redisClient = null; // await this.redisService.getClient();
     if(this.redisClient) throw new Error('redis client is not ready')
   }
 
@@ -92,16 +103,5 @@ export class AuthService implements IAuthService {
     const result = await this.redisClient.get(token)
     const body = JSON.parse(result)
     return body;
-  }
-  
-  private async validateUserT(username: string, pass: string): Promise<User> {
-    const user = await this.usersService.findOne(username);
-    if(!user) throw new NotFoundException('user not found');
-
-    if (user && user.password === pass) {
-      const { password, ...result } = user;
-      return result as User;
-    }
-    return null;
-  }
+  } 
 }

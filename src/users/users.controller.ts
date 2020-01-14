@@ -13,12 +13,11 @@ export class UsersController {
 
     @UsePipes(new ValidationPipe())
     @Post('/role/change')
-    async changeRole(@Req() req: Request, @Body() dto: ChangeRoleDTO) :  Promise<200|401|403|400>{
+    async changeRole(@Req() req: Request, @Body() dto: ChangeRoleDTO) :  Promise<boolean>{
         const token:string | undefined = req.header('xtoken');
 
-        const statusValid = await this.authService.validateToken(token, dto.username, dto.role);
-        if(statusValid !== 200) return statusValid;
+        await this.authService.validateTokenT(token, dto.username, dto.role);
         
-        return await this.userService.changeRole(dto.role) === true ? 200 : 400;
+        return await this.userService.changeRole(dto.role) ;
     }
 }

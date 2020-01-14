@@ -49,12 +49,11 @@ export class AuthController {
 
     @UsePipes(new ValidationPipe())
     @Post('/validateToken')
-    async validateToken(@Req() req: Request, @Body() dto: ValidateTokenDTO) :  Promise<200|401|403|400>{
+    async validateTokenT(@Req() req: Request, @Body() dto: ValidateTokenDTO) :  Promise<boolean>{
         const token:string | undefined = req.header('xtoken');
         if(!token) throw new BadRequestException('token not found');
 
-        const result = await this.authService.validateToken(token, dto.username, dto.role);
-        return result;
+        return await this.authService.validateTokenT(token, dto.username, dto.role);
     }
 
     

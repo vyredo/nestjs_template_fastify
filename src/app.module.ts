@@ -6,16 +6,20 @@ import { UsersModule } from './users/users.module';
 import { RedisModule} from 'nestjs-redis';
 
 const redisOptions = {
-  host: process.env.REDIS_HOST,
-  port: parseInt(process.env.REDIS_PORT),
-  db: parseInt(process.env.REDIS_DB),
-  password: process.env.REDIS_PASSWORD,
-  keyPrefix: process.env.REDIS_PRIFIX,
+  host: 'localhost', //process.env.REDIS_HOST,
+  port: 6379, //parseInt(process.env.REDIS_PORT),
+  // db: parseInt(process.env.REDIS_DB),
+  // password: process.env.REDIS_PASSWORD,
+  // keyPrefix: process.env.REDIS_PRIFIX,
 }
 
 
 @Module({
-  imports: [RedisModule.register(redisOptions), AuthModule, UsersModule],
+  imports: [
+    RedisModule.register(redisOptions),
+    AuthModule, 
+    UsersModule
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
